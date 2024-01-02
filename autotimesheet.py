@@ -213,7 +213,6 @@ law = TimesheetLaw()
 config = TimesheetConfig()
 state = TimesheetState(config)
 
-fh = open(f'WH-{config.givenname}-{config.surname}-{now.year}-{now.month}.csv', mode='w')
 timestamp = '%d-%02d' % (now.year, now.month)
 
 fh = open(f'WH-{config.givenname}-{config.surname}-{timestamp}.csv', mode='w')

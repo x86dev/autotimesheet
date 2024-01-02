@@ -249,7 +249,7 @@ csv_row['time_start'] = ''
 csv_row['time_end'] = ''
 csv_row['td_pause'] = ''
 csv_row['td_worktime'] = hours_worked_total
-csv_row['comments'] = 'Arbeitszeit gesamt'
+csv_row['comments'] = 'Total Working Time'
 csv_writer.writerow(csv_row.values())
 print(csv_row)
 
@@ -259,6 +259,6 @@ csv_row['time_start'] = ''
 csv_row['time_end'] = ''
 csv_row['td_pause'] = ''
 csv_row['td_worktime'] = -(hours_required - hours_worked_total)
-csv_row['comments'] = 'Differenz '
+csv_row['comments'] = 'Accumulated '
 csv_writer.writerow(csv_row.values())
 print(csv_row)

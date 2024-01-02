@@ -214,6 +214,9 @@ config = TimesheetConfig()
 state = TimesheetState(config)
 
 fh = open(f'WH-{config.givenname}-{config.surname}-{now.year}-{now.month}.csv', mode='w')
+timestamp = '%d-%02d' % (now.year, now.month)
+
+fh = open(f'WH-{config.givenname}-{config.surname}-{timestamp}.csv', mode='w')
 csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 csv_hdr    = dict(date='Date', time_start='Start', time_end='End', \
                   td_pause='Pause', td_worktime='Working Time', comments='Comments')

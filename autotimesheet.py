@@ -63,7 +63,8 @@ class TimesheetState:
     def __init__(self, config):
         self.businessdays_per_month = 0
         self.m_worked   = config.minutes_diff
-        self.m_to_work  = timedelta(minutes=config.hours_per_week * 60 * 4) ## @todo Means weeks
+        # Note: 4.3 means: A month is 4.3 weeks on average (52 weeks / 12 months a year).
+        self.m_to_work  = timedelta(minutes=config.hours_per_week * 60 * 4.3)
         self.m_to_work += timedelta(minutes=randint(config.min_overhours * 60, config.max_overhours * 60))
 
 class TimesheetDay:

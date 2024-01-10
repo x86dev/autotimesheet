@@ -135,6 +135,14 @@ def round_timedelta(time_delta, date_delta=timedelta(minutes=15), to='average'):
     dt = timedelta(hours=datetime_rounded.hour, minutes=datetime_rounded.minute)
     return dt
 
+def timedelta_to_time(time_delta):
+    """
+    Returns a time object from a timedelta object.
+    """
+    total_m, s = divmod(time_delta.seconds, 60)
+    h, m = divmod(total_m, 60)
+    return time(h, m, s)
+
 def calc_day(day, law, config, state):
     """
     Returns a calculated day based from a given timesheet state.
@@ -252,17 +260,17 @@ for cur_day in month_days:
                 'pause_td': '', 'worktime_td': '', 'comments': '' }
     csv_row['date'] = str(day_final.date)
     if cur_day.worktime_start:
-        csv_row['worktime_start'] = day_final.worktime_start.strftime("%H:%M:%S")
+        csv_row['worktime_start'] = day_final.worktime_start.strftime("%H:%M")
     if cur_day.worktime_end:
-        csv_row['worktime_end'] = day_final.worktime_end.strftime("%H:%M:%S")
+        csv_row['worktime_end'] = day_final.worktime_end.strftime("%H:%M")
     if cur_day.pause_start:
-        csv_row['pause_start'] = day_final.pause_start.strftime("%H:%M:%S")
+        csv_row['pause_start'] = day_final.pause_start.strftime("%H:%M")
     if cur_day.pause_end:
-        csv_row['pause_end'] = day_final.pause_end.strftime("%H:%M:%S")
+        csv_row['pause_end'] = day_final.pause_end.strftime("%H:%M")
     if cur_day.pause_td:
-        csv_row['pause_td'] = day_final.pause_td.seconds / 3600
+        csv_row['pause_td'] = timedelta_to_time(day_final.pause_td).strftime("%H:%M")
     if cur_day.worktime_td:
-        csv_row['worktime_td'] = day_final.worktime_td.seconds / 3600
+        csv_row['worktime_td'] = timedelta_to_time(day_final.worktime_td).strftime("%H:%M")
     csv_row['comments'] = day_final.comments
     csv_writer.writerow(csv_row.values())
     print(csv_row)

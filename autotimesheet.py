@@ -44,6 +44,8 @@ class TimesheetConfig:
         self.min_hours_per_day = 5
         self.start_not_before_than = datetime.strptime("08:00:00", "%H:%M:%S")
         self.start_not_later_than = datetime.strptime("11:00:00", "%H:%M:%S")
+        self.pause_not_before_than = datetime.strptime("12:00:00", "%H:%M:%S")
+        self.pause_not_later_than = datetime.strptime("14:00:00", "%H:%M:%S")
 
 class TimesheetLaw:
     """
@@ -72,7 +74,8 @@ class TimesheetDay:
         self.date = None
         self.time_start = None
         self.time_end = None
-        self.td_pause = None
+        self.pause_start = None
+        self.pause_end = None
         self.td_worktime = None
         self.comments = ''
         self.is_workday = False
@@ -137,24 +140,37 @@ def calc_day(day, law, config, state):
     if day.is_workday:
         time_start  = random_time(config.start_not_before_than, config.start_not_later_than)
         td_start    = timedelta(hours=time_start.hour, minutes=time_start.minute)
-        td_worktime = timedelta(minutes=randint(config.min_hours_per_day * 60, law.max_hours_per_day * 60))
-        td_pause    = timedelta(minutes=randint(law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
-        #td_worktime = timedelta(minutes=60 * 8) # timedelta(minutes=randint(config.min_hours_per_day * 60, law.max_hours_per_day * 60))
-        #td_pause    = timedelta(minutes=60) # timedelta(minutes=randint(law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
+        td_worktime_dur = timedelta(minutes=randint(config.min_hours_per_day * 60, law.max_hours_per_day * 60))
+        pause_start = random_time(config.pause_not_before_than, config.pause_not_later_than)
+        td_pause_start = timedelta(hours=pause_start.hour, minutes=pause_start.minute)
+        td_pause_dur   = timedelta(minutes=randint(law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
+
+        # Debug:
+        #td_start    = timedelta(hours=8, minutes=0)
+        #td_worktime_dur = timedelta(hours=8, minutes=0)
+        #td_pause_start = timedelta(hours=12, minutes=0)
+        #td_pause_dur = timedelta(hours=1, minutes=0)
+
         if config.round_to_minutes:
-            td_start    = round_timedelta(td_start)
-            td_worktime = round_timedelta(td_worktime)
-            td_pause    = round_timedelta(td_pause)
-        td_end      = td_start + td_worktime + td_pause
+            td_start         = round_timedelta(td_start)
+            td_worktime_dur  = round_timedelta(td_worktime_dur)
+            td_pause_start   = round_timedelta(td_pause_start)
+            td_pause_dur     = round_timedelta(td_pause_dur)
+        td_end      = td_start + td_worktime_dur + td_pause_dur
         time_start  = datetime.min + td_start
         time_end    = datetime.min + td_end
-        if td_worktime > state.m_to_work:
-            td_worktime = state.m_to_to_work
-        td_worked   = td_end - td_start - td_pause
+        td_pause_end = td_pause_start + td_pause_dur
+        pause_start = datetime.min + td_pause_start
+        pause_end   = datetime.min + td_pause_end
+        if td_worktime_dur > state.m_to_work:
+            td_worktime_dur = state.m_to_to_work
+        td_worked   = td_end - td_start - td_pause_dur
 
         day.time_start = time_start
         day.time_end = time_end
-        day.td_pause = td_pause
+        day.pause_start = pause_start
+        day.pause_end   = pause_end
+
         day.td_worktime = td_worked
 
         state.m_worked  += td_worked
@@ -218,20 +234,24 @@ timestamp = '%d-%02d' % (now.year, now.month)
 fh = open(f'WH-{config.givenname}-{config.surname}-{timestamp}.csv', mode='w')
 csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 csv_hdr    = dict(date='Date', time_start='Start', time_end='End', \
-                  td_pause='Pause', td_worktime='Working Time', comments='Comments')
+                  pause_start='Lunch Break Start', pause_end='Lunch Break End', \
+                  td_worktime='Working Time', comments='Comments')
 csv_writer.writerow(csv_hdr.values())
 
 month_days, business_days_per_month = get_days(config, now)
 for cur_day in month_days:
     day_final = calc_day(cur_day, law, config, state)
-    csv_row = { 'date': '', 'time_start': '', 'time_end': '', 'td_pause': '', 'td_worktime': '', 'comments': '' }
+    csv_row = { 'date': '', 'time_start': '', 'time_end': '', 'pause_start': '', 'pause_end': '', \
+                'td_worktime': '', 'comments': '' }
     csv_row['date'] = str(day_final.date)
     if cur_day.time_start:
         csv_row['time_start'] = day_final.time_start.strftime("%H:%M:%S")
     if cur_day.time_end:
         csv_row['time_end'] = day_final.time_end.strftime("%H:%M:%S")
-    if cur_day.td_pause:
-        csv_row['td_pause'] = day_final.td_pause.seconds / 3600
+    if cur_day.pause_start:
+        csv_row['pause_start'] = day_final.pause_start.strftime("%H:%M:%S")
+    if cur_day.pause_end:
+        csv_row['pause_end'] = day_final.pause_end.strftime("%H:%M:%S")
     if cur_day.td_worktime:
         csv_row['td_worktime'] = day_final.td_worktime.seconds / 3600
     csv_row['comments'] = day_final.comments
@@ -249,7 +269,8 @@ csv_row = {}
 csv_row['date'] = ''
 csv_row['time_start'] = ''
 csv_row['time_end'] = ''
-csv_row['td_pause'] = ''
+csv_row['pause_start'] = ''
+csv_row['pause_end'] = ''
 csv_row['td_worktime'] = hours_worked_total
 csv_row['comments'] = 'Total Working Time'
 csv_writer.writerow(csv_row.values())
@@ -259,7 +280,8 @@ csv_row = {}
 csv_row['date'] = ''
 csv_row['time_start'] = ''
 csv_row['time_end'] = ''
-csv_row['td_pause'] = ''
+csv_row['pause_start'] = ''
+csv_row['pause_end'] = ''
 csv_row['td_worktime'] = -(hours_required - hours_worked_total)
 csv_row['comments'] = 'Accumulated '
 csv_writer.writerow(csv_row.values())

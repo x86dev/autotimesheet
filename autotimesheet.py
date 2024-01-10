@@ -137,7 +137,12 @@ def calc_day(day, law, config, state):
     """
     Returns a calculated day based from a given timesheet state.
     """
-    if day.is_workday:
+    if not day.is_workday:
+        return day
+
+    if  not day.is_public_holiday \
+    or  (        day.is_public_holiday
+         and not law.public_holidays_count_as_workdays):
         time_start  = random_time(config.start_not_before_than, config.start_not_later_than)
         td_start    = timedelta(hours=time_start.hour, minutes=time_start.minute)
         td_worktime_dur = timedelta(minutes=randint(config.min_hours_per_day * 60, law.max_hours_per_day * 60))

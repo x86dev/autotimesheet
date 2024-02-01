@@ -72,6 +72,7 @@ class TimesheetConfig:
         self.min_overhours = 0 # Don't abuse this!
         self.max_overhours = 0 # Ditto.
         # Stuff which probably does not need tweaking each month.
+        self.verbosity = 0
         self.givenname = 'John'
         self.surname = 'Doe'
         self.work_on_weekend_days = []
@@ -290,6 +291,9 @@ def main():
         print("For help use --help")
         sys.exit(2)
 
+    config = TimesheetConfig()
+    state = TimesheetState(config)
+
     now = datetime.now()
 
     for o, a in aOpts:
@@ -301,12 +305,9 @@ def main():
         elif o in "--year":
             now = now.replace(year=int(a))
         elif o in "-v":
-            g_cVerbosity += 1
+            config.verbosity += 1
         else:
             assert False, "Unhandled option"
-
-    config = TimesheetConfig()
-    state = TimesheetState(config)
 
     config.hol = holidays.DE(years = now.year, subdiv='BE', language='de')
 
@@ -323,7 +324,10 @@ def main():
     for cur_day in month_days:
         day_final = calc_day(config, state, cur_day)
         csv_row = { 'date': '', 'worktime_start': '', 'worktime_end': '', 'pause_start': '', 'pause_end': '', \
-                    'pause_td': '', 'worktime_td': '', 'comments': '' }
+                    'comments': '' }
+        if config.verbosity:
+            csv_row['pause_td'] = ''
+            csv_row['worktime_td'] = ''
         csv_row['date'] = str(day_final.date)
         if cur_day.worktime_start:
             csv_row['worktime_start'] = day_final.worktime_start.strftime("%H:%M")
@@ -333,9 +337,11 @@ def main():
             csv_row['pause_start'] = day_final.pause_start.strftime("%H:%M")
         if cur_day.pause_end:
             csv_row['pause_end'] = day_final.pause_end.strftime("%H:%M")
-        if cur_day.pause_td:
+        if  config.verbosity \
+        and cur_day.pause_td:
             csv_row['pause_td'] = timedelta_to_time(day_final.pause_td).strftime("%H:%M")
-        if cur_day.worktime_td:
+        if  config.verbosity \
+        and cur_day.worktime_td:
             csv_row['worktime_td'] = timedelta_to_time(day_final.worktime_td).strftime("%H:%M")
         csv_row['comments'] = day_final.comments
         csv_writer.writerow(csv_row.values())
@@ -354,8 +360,9 @@ def main():
     csv_row['worktime_end'] = ''
     csv_row['pause_start'] = ''
     csv_row['pause_end'] = ''
-    csv_row['pause_td'] = ''
-    csv_row['worktime_td'] = hours_worked_total
+    if config.verbosity:
+        csv_row['pause_td'] = ''
+        csv_row['worktime_td'] = hours_worked_total
     csv_row['comments'] = 'Total Working Time'
     csv_writer.writerow(csv_row.values())
     print(csv_row)
@@ -366,8 +373,9 @@ def main():
     csv_row['worktime_end'] = ''
     csv_row['pause_start'] = ''
     csv_row['pause_end'] = ''
-    csv_row['pause_td'] = ''
-    csv_row['worktime_td'] = -(hours_required - hours_worked_total)
+    if config.verbosity:
+        csv_row['pause_td'] = ''
+        csv_row['worktime_td'] = -(hours_required - hours_worked_total)
     csv_row['comments'] = 'Accumulated '
     csv_writer.writerow(csv_row.values())
     print(csv_row)

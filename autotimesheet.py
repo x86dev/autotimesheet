@@ -17,8 +17,19 @@
 import calendar
 import csv
 from datetime import datetime, date, time, timedelta
+import getopt
 import holidays
-from random import randint, randrange
+from random import randint
+import sys
+
+class TimesheetLaw:
+    """
+    Represents requirements by law.
+    """
+    def __init__(self):
+        self.max_hours_per_day = 10
+        self.min_pause_hours_per_workday = 1
+        self.public_holidays_count_as_workdays = True # For Germany at least.
 
 class TimesheetConfig:
     """
@@ -29,6 +40,9 @@ class TimesheetConfig:
     def __init__(self):
         # Stuff which needs tweaking each month.
         self.vacation = []
+        self.hol = None
+        self.cal = calendar.Calendar()
+        self.law = TimesheetLaw()
         self.minutes_diff = timedelta(hours=0) # Overhours / minus hours from last month.
         self.max_pause_hours_per_day = 2
         self.min_overhours = 0 # Don't abuse this!
@@ -46,15 +60,6 @@ class TimesheetConfig:
         self.start_not_later_than = datetime.strptime("11:00:00", "%H:%M:%S")
         self.pause_not_before_than = datetime.strptime("12:00:00", "%H:%M:%S")
         self.pause_not_later_than = datetime.strptime("14:00:00", "%H:%M:%S")
-
-class TimesheetLaw:
-    """
-    Represents requirements by law.
-    """
-    def __init__(self):
-        self.max_hours_per_day = 10
-        self.min_pause_hours_per_workday = 1
-        self.public_holidays_count_as_workdays = True # For Germany at least.
 
 class TimesheetState:
     """
@@ -125,7 +130,7 @@ def round_time(dt=None, date_delta=timedelta(minutes=1), to='average'):
 
     return dt + timedelta(0, rounding - seconds, - dt.microsecond)
 
-def round_timedelta(time_delta, date_delta=timedelta(minutes=15), to='average'):
+def round_timedelta(time_delta, date_delta=timedelta(minutes=15), _to='average'):
     """
     Rounds a timedelta up/down/average (15 minutes by default).
     """
@@ -143,7 +148,7 @@ def timedelta_to_time(time_delta):
     h, m = divmod(total_m, 60)
     return time(h, m, s)
 
-def calc_day(day, law, config, state):
+def calc_day(config, state, day):
     """
     Returns a calculated day based from a given timesheet state.
     """
@@ -152,13 +157,13 @@ def calc_day(day, law, config, state):
 
     if  not day.is_public_holiday \
     or  (        day.is_public_holiday
-         and not law.public_holidays_count_as_workdays):
+         and not config.law.public_holidays_count_as_workdays):
         worktime_start    = random_time(config.start_not_before_than, config.start_not_later_than)
         worktime_start_td = timedelta(hours=worktime_start.hour, minutes=worktime_start.minute)
-        worktime_dur_td   = timedelta(minutes=randint(config.min_hours_per_day * 60, law.max_hours_per_day * 60))
+        worktime_dur_td   = timedelta(minutes=randint(config.min_hours_per_day * 60, config.law.max_hours_per_day * 60))
         pause_start       = random_time(config.pause_not_before_than, config.pause_not_later_than)
         pause_start_td    = timedelta(hours=pause_start.hour, minutes=pause_start.minute)
-        pause_dur_td      = timedelta(minutes=randint(law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
+        pause_dur_td      = timedelta(minutes=randint(config.law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
 
         # Debug:
         #worktime_start_td = timedelta(hours=8, minutes=0)
@@ -200,15 +205,15 @@ def get_days(config, datetime_now):
     """
     days = []
     number_businessdays = 0
-    for cur_date in list(cal.itermonthdates(datetime_now.year, datetime_now.month)):
+    for cur_date in list(config.cal.itermonthdates(datetime_now.year, datetime_now.month)):
         cur_day = TimesheetDay()
         if cur_date.month != datetime_now.month:
             continue
         is_workday = False
         is_public_holiday = False
         is_weekend = False
-        if cur_date in holidays:
-            is_public_holiday = holidays.get(cur_date)
+        if cur_date in config.hol:
+            is_public_holiday = config.hol.get(cur_date)
         workday = None
         iso_weekday = cur_date.isoweekday()
         if iso_weekday <= 5 \
@@ -221,7 +226,7 @@ def get_days(config, datetime_now):
         if is_public_holiday:
             cur_day.comments = 'Feiertag: ' + is_public_holiday
             cur_day.is_public_holiday = is_public_holiday is not None
-            if law.public_holidays_count_as_workdays:
+            if config.law.public_holidays_count_as_workdays:
                 is_workday = True
         elif is_weekend:
             cur_day.is_weekend = True
@@ -235,73 +240,114 @@ def get_days(config, datetime_now):
         days.append(cur_day)
     return days, number_businessdays
 
-now = datetime.now()
-holidays = holidays.DE(years = now.year, subdiv='BE', language='de')
+def printHelp():
+    """
+    Prints syntax help.
+    """
+    print("--help or -h")
+    print("    Prints this help text.")
+    print("--month <MM>")
+    print("    Specifies the month (01-12).")
+    print("-v")
+    print("    Increases logging verbosity. Can be specified multiple times.")
+    print("--year <YYYY>")
+    print("    Specifies the year (e.g. 2024).")
+    print("\n")
 
-cal = calendar.Calendar()
+def main():
+    """
+    Main function.
+    """
+    try:
+        aOpts, _ = getopt.gnu_getopt(sys.argv[1:], "hv", \
+            [ "help", "month=", "year=" ])
+    except getopt.error as msg:
+        print(msg)
+        print("For help use --help")
+        sys.exit(2)
 
-law = TimesheetLaw()
-config = TimesheetConfig()
-state = TimesheetState(config)
+    now = datetime.now()
 
-timestamp = '%d-%02d' % (now.year, now.month)
+    for o, a in aOpts:
+        if o in ("-h", "--help"):
+            printHelp()
+            sys.exit(0)
+        elif o in "--month":
+            now = now.replace(month=int(a))
+        elif o in "--year":
+            now = now.replace(year=int(a))
+        elif o in "-v":
+            g_cVerbosity += 1
+        else:
+            assert False, "Unhandled option"
 
-fh = open(f'WH-{config.givenname}-{config.surname}-{timestamp}.csv', mode='w')
-csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-csv_hdr    = dict(date='Date', worktime_start='Start', worktime_end='End', \
-                  pause_start='Lunch Break Start', pause_end='Lunch Break End', \
-                  pause_td='Pause Dur', worktime_td='Working Dur', comments='Comments')
-csv_writer.writerow(csv_hdr.values())
+    config = TimesheetConfig()
+    state = TimesheetState(config)
 
-month_days, business_days_per_month = get_days(config, now)
-for cur_day in month_days:
-    day_final = calc_day(cur_day, law, config, state)
-    csv_row = { 'date': '', 'worktime_start': '', 'worktime_end': '', 'pause_start': '', 'pause_end': '', \
-                'pause_td': '', 'worktime_td': '', 'comments': '' }
-    csv_row['date'] = str(day_final.date)
-    if cur_day.worktime_start:
-        csv_row['worktime_start'] = day_final.worktime_start.strftime("%H:%M")
-    if cur_day.worktime_end:
-        csv_row['worktime_end'] = day_final.worktime_end.strftime("%H:%M")
-    if cur_day.pause_start:
-        csv_row['pause_start'] = day_final.pause_start.strftime("%H:%M")
-    if cur_day.pause_end:
-        csv_row['pause_end'] = day_final.pause_end.strftime("%H:%M")
-    if cur_day.pause_td:
-        csv_row['pause_td'] = timedelta_to_time(day_final.pause_td).strftime("%H:%M")
-    if cur_day.worktime_td:
-        csv_row['worktime_td'] = timedelta_to_time(day_final.worktime_td).strftime("%H:%M")
-    csv_row['comments'] = day_final.comments
+    config.hol = holidays.DE(years = now.year, subdiv='BE', language='de')
+
+    timestamp = '%d-%02d' % (now.year, now.month)
+
+    fh = open(f'WH-{config.givenname}-{config.surname}-{timestamp}.csv', mode='w')
+    csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csv_hdr    = dict(date='Date', worktime_start='Start', worktime_end='End', \
+                    pause_start='Lunch Break Start', pause_end='Lunch Break End', \
+                    pause_td='Pause Dur', worktime_td='Working Dur', comments='Comments')
+    csv_writer.writerow(csv_hdr.values())
+
+    month_days, business_days_per_month = get_days(config, now)
+    for cur_day in month_days:
+        day_final = calc_day(config, state, cur_day)
+        csv_row = { 'date': '', 'worktime_start': '', 'worktime_end': '', 'pause_start': '', 'pause_end': '', \
+                    'pause_td': '', 'worktime_td': '', 'comments': '' }
+        csv_row['date'] = str(day_final.date)
+        if cur_day.worktime_start:
+            csv_row['worktime_start'] = day_final.worktime_start.strftime("%H:%M")
+        if cur_day.worktime_end:
+            csv_row['worktime_end'] = day_final.worktime_end.strftime("%H:%M")
+        if cur_day.pause_start:
+            csv_row['pause_start'] = day_final.pause_start.strftime("%H:%M")
+        if cur_day.pause_end:
+            csv_row['pause_end'] = day_final.pause_end.strftime("%H:%M")
+        if cur_day.pause_td:
+            csv_row['pause_td'] = timedelta_to_time(day_final.pause_td).strftime("%H:%M")
+        if cur_day.worktime_td:
+            csv_row['worktime_td'] = timedelta_to_time(day_final.worktime_td).strftime("%H:%M")
+        csv_row['comments'] = day_final.comments
+        csv_writer.writerow(csv_row.values())
+        print(csv_row)
+
+    hours_worked_total = state.worked_total_td.total_seconds() / 3600
+    hours_required     = state.to_work_td.total_seconds() / 3600
+
+    print("Business days this month: %d => %d hours this month" % (business_days_per_month, business_days_per_month * config.hours_per_day))
+    print("Required worktime (hours): ", hours_required)
+    print("Actual worktime (hours): ", hours_worked_total)
+
+    csv_row = {}
+    csv_row['date'] = ''
+    csv_row['worktime_start'] = ''
+    csv_row['worktime_end'] = ''
+    csv_row['pause_start'] = ''
+    csv_row['pause_end'] = ''
+    csv_row['pause_td'] = ''
+    csv_row['worktime_td'] = hours_worked_total
+    csv_row['comments'] = 'Total Working Time'
     csv_writer.writerow(csv_row.values())
     print(csv_row)
 
-hours_worked_total = state.worked_total_td.total_seconds() / 3600
-hours_required     = state.to_work_td.total_seconds() / 3600
+    csv_row = {}
+    csv_row['date'] = ''
+    csv_row['worktime_start'] = ''
+    csv_row['worktime_end'] = ''
+    csv_row['pause_start'] = ''
+    csv_row['pause_end'] = ''
+    csv_row['pause_td'] = ''
+    csv_row['worktime_td'] = -(hours_required - hours_worked_total)
+    csv_row['comments'] = 'Accumulated '
+    csv_writer.writerow(csv_row.values())
+    print(csv_row)
 
-print("Business days this month: %d => %d hours this month" % (business_days_per_month, business_days_per_month * config.hours_per_day))
-print("Required worktime (hours): ", hours_required)
-print("Actual worktime (hours): ", hours_worked_total)
 
-csv_row = {}
-csv_row['date'] = ''
-csv_row['worktime_start'] = ''
-csv_row['worktime_end'] = ''
-csv_row['pause_start'] = ''
-csv_row['pause_end'] = ''
-csv_row['pause_td'] = ''
-csv_row['worktime_td'] = hours_worked_total
-csv_row['comments'] = 'Total Working Time'
-csv_writer.writerow(csv_row.values())
-print(csv_row)
-
-csv_row = {}
-csv_row['date'] = ''
-csv_row['worktime_start'] = ''
-csv_row['worktime_end'] = ''
-csv_row['pause_start'] = ''
-csv_row['pause_end'] = ''
-csv_row['pause_td'] = ''
-csv_row['worktime_td'] = -(hours_required - hours_worked_total)
-csv_row['comments'] = 'Accumulated '
-csv_writer.writerow(csv_row.values())
-print(csv_row)
+if __name__ == "__main__":
+    main()

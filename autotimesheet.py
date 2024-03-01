@@ -53,7 +53,9 @@ class TimesheetLaw:
     def __init__(self):
         self.max_hours_per_day = 10
         self.min_pause_hours_per_workday = 1
-        self.public_holidays_count_as_workdays = True # For Germany at least.
+        self.public_holidays_count_as_workdays  = True # For Germany at least.
+        self.sick_leave_count_as_workdays       = True # Ditto.
+        self.child_sick_leave_count_as_workdays = True # Ditto.
 
 class TimesheetConfig:
     """
@@ -64,6 +66,9 @@ class TimesheetConfig:
     def __init__(self):
         # Stuff which needs tweaking each month.
         self.vacation = []
+        self.sick_leave = []
+        # Example: self.sick_leave.append(date(2024, 12, 24))
+        self.child_sick_leave = []
         self.hol = None
         self.cal = calendar.Calendar()
         self.law = TimesheetLaw()
@@ -113,7 +118,9 @@ class TimesheetDay:
         self.is_workday = False
         self.is_weekend = False
         self.is_public_holiday = False
-
+        self.is_vacation = False
+        self.is_sick_leave = False
+        self.is_child_sick_leave = False
 
 def to_timedelta(t: time) -> timedelta:
     return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)
@@ -177,48 +184,52 @@ def calc_day(config, state, day):
     """
     Returns a calculated day based from a given timesheet state.
     """
+    if day.is_vacation \
+    or day.is_sick_leave \
+    or day.is_child_sick_leave \
+    or day.is_child_sick_leave:
+        state.worked_total_td += timedelta(hours=config.hours_per_day)
+        return day
+
     if not day.is_workday:
         return day
 
-    if  not day.is_public_holiday \
-    or  (        day.is_public_holiday
-         and not config.law.public_holidays_count_as_workdays):
-        worktime_start    = random_time(config.start_not_before_than, config.start_not_later_than)
-        worktime_start_td = timedelta(hours=worktime_start.hour, minutes=worktime_start.minute)
-        worktime_dur_td   = timedelta(minutes=randint(config.min_hours_per_day * 60, config.law.max_hours_per_day * 60))
-        pause_start       = random_time(config.pause_not_before_than, config.pause_not_later_than)
-        pause_start_td    = timedelta(hours=pause_start.hour, minutes=pause_start.minute)
-        pause_dur_td      = timedelta(minutes=randint(config.law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
+    worktime_start    = random_time(config.start_not_before_than, config.start_not_later_than)
+    worktime_start_td = timedelta(hours=worktime_start.hour, minutes=worktime_start.minute)
+    worktime_dur_td   = timedelta(minutes=randint(config.min_hours_per_day * 60, config.law.max_hours_per_day * 60))
+    pause_start       = random_time(config.pause_not_before_than, config.pause_not_later_than)
+    pause_start_td    = timedelta(hours=pause_start.hour, minutes=pause_start.minute)
+    pause_dur_td      = timedelta(minutes=randint(config.law.min_pause_hours_per_workday * 60, config.max_pause_hours_per_day * 60))
 
-        # Debug:
-        #worktime_start_td = timedelta(hours=8, minutes=0)
-        #worktime_dur_td = timedelta(hours=8, minutes=0)
-        #pause_start_td = timedelta(hours=12, minutes=0)
-        #pause_dur_td = timedelta(hours=1, minutes=0)
+    # Debug:
+    #worktime_start_td = timedelta(hours=8, minutes=0)
+    #worktime_dur_td = timedelta(hours=8, minutes=0)
+    #pause_start_td = timedelta(hours=12, minutes=0)
+    #pause_dur_td = timedelta(hours=1, minutes=0)
 
-        if config.round_to_minutes:
-            worktime_start_td = round_timedelta(worktime_start_td)
-            worktime_dur_td   = round_timedelta(worktime_dur_td)
-            pause_start_td    = round_timedelta(pause_start_td)
-            pause_dur_td      = round_timedelta(pause_dur_td)
-        worktime_end_td = worktime_start_td + worktime_dur_td + pause_dur_td
-        worktime_start  = datetime.min + worktime_start_td
-        worktime_end    = datetime.min + worktime_end_td
-        pause_end_td    = pause_start_td + pause_dur_td
-        pause_start     = datetime.min + pause_start_td
-        pause_end       = datetime.min + pause_end_td
-        if worktime_dur_td > state.to_work_td:
-            worktime_dur_td = state.m_to_to_work
-        worked_td       = worktime_end_td - worktime_start_td - pause_dur_td
+    if config.round_to_minutes:
+        worktime_start_td = round_timedelta(worktime_start_td)
+        worktime_dur_td   = round_timedelta(worktime_dur_td)
+        pause_start_td    = round_timedelta(pause_start_td)
+        pause_dur_td      = round_timedelta(pause_dur_td)
+    worktime_end_td = worktime_start_td + worktime_dur_td + pause_dur_td
+    worktime_start  = datetime.min + worktime_start_td
+    worktime_end    = datetime.min + worktime_end_td
+    pause_end_td    = pause_start_td + pause_dur_td
+    pause_start     = datetime.min + pause_start_td
+    pause_end       = datetime.min + pause_end_td
+    if worktime_dur_td > state.to_work_td:
+        worktime_dur_td = state.m_to_to_work
+    worked_td       = worktime_end_td - worktime_start_td - pause_dur_td
 
-        day.worktime_start = worktime_start
-        day.worktime_end   = worktime_end
-        day.worktime_td    = worked_td
-        day.pause_start    = pause_start
-        day.pause_end      = pause_end
-        day.pause_td       = pause_dur_td
+    day.worktime_start = worktime_start
+    day.worktime_end   = worktime_end
+    day.worktime_td    = worked_td
+    day.pause_start    = pause_start
+    day.pause_end      = pause_end
+    day.pause_td       = pause_dur_td
 
-        state.worked_total_td += worked_td
+    state.worked_total_td += worked_td
 
     return day
 
@@ -226,7 +237,7 @@ def get_days(config, datetime_now):
     """
     Returns a tuple of monthly days and the number of business days within that month.
 
-    Also respects weekend days and public holidays (in 'comments' key).
+    Also respects weekend days, public holidays, vacation and sick days (in 'comments' key).
     """
     days = []
     number_businessdays = 0
@@ -237,6 +248,9 @@ def get_days(config, datetime_now):
         is_workday = False
         is_public_holiday = False
         is_weekend = False
+        is_vacation = cur_date in config.vacation
+        is_sick_leave = cur_date in config.sick_leave
+        is_child_sick_leave = cur_date in config.child_sick_leave
         if cur_date in config.hol:
             is_public_holiday = config.hol.get(cur_date)
         workday = None
@@ -256,6 +270,19 @@ def get_days(config, datetime_now):
         elif is_weekend:
             cur_day.is_weekend = True
             cur_day.comments = 'Wochenende'
+        elif is_vacation:
+            cur_day.is_vacation = True
+            cur_day.comments = 'Urlaub'
+        elif is_sick_leave:
+            cur_day.is_sick_leave = True
+            cur_day.comments = 'Krankmeldung'
+            if config.law.sick_leave_count_as_workdays:
+                is_workday = True
+        elif is_child_sick_leave:
+            cur_day.is_child_sick_leave = True
+            cur_day.comments = 'Krankmeldung (Kind krank)'
+            if config.law.child_sick_leave_count_as_workdays:
+                is_workday = True
         else: # Regular work day
             is_workday = True
 

@@ -85,7 +85,7 @@ class TimesheetConfig:
         self.hours_per_week = 39
         self.hours_per_day = self.hours_per_week / self.workdays_per_week
         self.round_to_minutes = 15
-        self.min_hours_per_day = 5
+        self.min_hours_per_day = 6
         self.start_not_before_than = datetime.strptime("08:00:00", "%H:%M:%S")
         self.start_not_later_than = datetime.strptime("11:00:00", "%H:%M:%S")
         self.pause_not_before_than = datetime.strptime("12:00:00", "%H:%M:%S")
@@ -98,6 +98,9 @@ class TimesheetState:
     def __init__(self, config):
         self.businessdays_per_month = 0
         self.worked_total_td   = config.minutes_diff
+        self.vacation_days = 0
+        self.sick_leave_days = 0
+        self.child_sick_leave_days = 0
         # Note: 4.3 means: A month is 4.3 weeks on average (52 weeks / 12 months a year).
         self.to_work_td  = timedelta(minutes=config.hours_per_week * 60 * 4.3)
         self.to_work_td += timedelta(minutes=randint(config.min_overhours * 60, config.max_overhours * 60))
@@ -184,9 +187,16 @@ def calc_day(config, state, day):
     """
     Returns a calculated day based from a given timesheet state.
     """
-    if day.is_vacation \
+    if day.is_vacation:
+        state.vacation_days += 1
+    if day.is_sick_leave:
+        state.sick_leave_days += 1
+    if day.is_child_sick_leave:
+        state.child_sick_leave_days += 1
+
+    if day.is_public_holiday \
+    or day.is_vacation \
     or day.is_sick_leave \
-    or day.is_child_sick_leave \
     or day.is_child_sick_leave:
         state.worked_total_td += timedelta(hours=config.hours_per_day)
         return day
@@ -265,8 +275,6 @@ def get_days(config, datetime_now):
         if is_public_holiday:
             cur_day.comments = 'Feiertag: ' + is_public_holiday
             cur_day.is_public_holiday = is_public_holiday is not None
-            if config.law.public_holidays_count_as_workdays:
-                is_workday = True
         elif is_weekend:
             cur_day.is_weekend = True
             cur_day.comments = 'Wochenende'
@@ -344,7 +352,11 @@ def main():
     csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     csv_hdr    = dict(date='Date', worktime_start='Start', worktime_end='End', \
                     pause_start='Lunch Break Start', pause_end='Lunch Break End', \
-                    pause_td='Pause Dur', worktime_td='Working Dur', comments='Comments')
+                    comments='Comments')
+    if config.verbosity:
+        csv_hdr['pause_td'] = 'Pause Duration'
+        csv_hdr['worktime_td'] = 'Working Duration'
+
     csv_writer.writerow(csv_hdr.values())
 
     month_days, business_days_per_month = get_days(config, now)
@@ -377,9 +389,14 @@ def main():
     hours_worked_total = state.worked_total_td.total_seconds() / 3600
     hours_required     = state.to_work_td.total_seconds() / 3600
 
-    print("Business days this month: %d => %d hours this month" % (business_days_per_month, business_days_per_month * config.hours_per_day))
-    print("Required worktime (hours): ", hours_required)
-    print("Actual worktime (hours): ", hours_worked_total)
+    if config.verbosity:
+        print("Business days this month: %d => %d hours this month"
+              % (business_days_per_month, business_days_per_month * config.hours_per_day))
+
+    print("Worked               : %d / %d hours: " % (hours_worked_total, hours_required,))
+    print("Vacation days        : %d" % (state.vacation_days,))
+    print("Sick leave days      : %d" % (state.sick_leave_days,))
+    print("Child sick leave days: %d" % (state.child_sick_leave_days,))
 
     csv_row = {}
     csv_row['date'] = ''

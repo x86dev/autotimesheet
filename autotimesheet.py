@@ -66,6 +66,9 @@ class TimesheetConfig:
     def __init__(self):
         # Stuff which needs tweaking each month.
         self.vacation = []
+        # Example:
+        # for i in range(1, 14):
+        #     self.vacation.append(date(2024, 7, 1) + timedelta(days = i))
         self.sick_leave = []
         # Example: self.sick_leave.append(date(2024, 12, 24))
         self.child_sick_leave = []

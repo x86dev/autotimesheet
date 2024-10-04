@@ -43,8 +43,11 @@ import csv
 from datetime import datetime, date, time, timedelta
 import getopt
 import holidays
+import json
+import os
 from random import randint
 import sys
+from types import SimpleNamespace
 
 class TimesheetLaw:
     """
@@ -93,6 +96,12 @@ class TimesheetConfig:
         self.start_not_later_than = datetime.strptime("11:00:00", "%H:%M:%S")
         self.pause_not_before_than = datetime.strptime("12:00:00", "%H:%M:%S")
         self.pause_not_later_than = datetime.strptime("14:00:00", "%H:%M:%S")
+
+    def dump(self):
+        """
+        Returns the configuration as a JSON string.
+        """
+        return json.dumps(self, default=lambda x: getattr(x, '__dict__', str(x)))
 
 class TimesheetState:
     """
@@ -303,6 +312,28 @@ def get_days(config, datetime_now):
         days.append(cur_day)
     return days, number_businessdays
 
+def profile_read(profile, config):
+    """
+    Reads a profile from a file.
+
+    Returns a tuple (result, config).
+    """
+    print("Loading profile '%s'" % (profile,))
+
+    if not os.path.isfile(profile):
+        return (False, None)
+
+    with open(profile, encoding="utf-8") as file:
+        config = json.load(file, object_hook=lambda d: SimpleNamespace(**d))
+
+    config.cal = calendar.Calendar()
+    config.start_not_before_than = datetime.strptime(config.start_not_before_than, '%Y-%m-%d %H:%M:%S')
+    config.start_not_later_than = datetime.strptime(config.start_not_later_than, '%Y-%m-%d %H:%M:%S')
+    config.pause_not_before_than = datetime.strptime(config.pause_not_before_than, '%Y-%m-%d %H:%M:%S')
+    config.pause_not_later_than = datetime.strptime(config.pause_not_later_than, '%Y-%m-%d %H:%M:%S')
+
+    return (True, config)
+
 def printHelp():
     """
     Prints syntax help.
@@ -323,7 +354,7 @@ def main():
     """
     try:
         aOpts, _ = getopt.gnu_getopt(sys.argv[1:], "hv", \
-            [ "help", "month=", "year=" ])
+            [ "debug-profile-dump", "help", "month=", "profile=", "year=" ])
     except getopt.error as msg:
         print(msg)
         print("For help use --help")
@@ -334,18 +365,36 @@ def main():
 
     now = datetime.now()
 
+    profile_file = ""
+
     for o, a in aOpts:
         if o in ("-h", "--help"):
             printHelp()
             sys.exit(0)
         elif o in "--month":
             now = now.replace(month=int(a))
+        elif o in "--profile":
+            profile_file = a
+        elif o in "--debug-profile-dump":
+            print(config.dump())
+            sys.exit(0)
         elif o in "--year":
             now = now.replace(year=int(a))
         elif o in "-v":
             config.verbosity += 1
         else:
             assert False, "Unhandled option"
+
+    if not profile_file:
+        print("No profile specified")
+        sys.exit(1)
+
+    rc, config = profile_read(profile_file, config)
+    if not rc:
+        print("Profile file not found / accessible!")
+        sys.exit(1)
+
+    print(config.cal)
 
     config.hol = holidays.DE(years = now.year, subdiv='BE', language='de')
 

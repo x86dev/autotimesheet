@@ -1,0 +1,30 @@
+{
+    "vacation": [],
+    "sick_leave": [],
+    "child_sick_leave": [],
+    "hol": null,
+    "cal": {"_firstweekday": 0},
+    "law": {
+        "max_hours_per_day": 8,
+        "min_pause_hours_per_workday": 1,
+        "public_holidays_count_as_workdays": true,
+        "sick_leave_count_as_workdays": true,
+        "child_sick_leave_count_as_workdays": true
+    },
+    "minutes_diff": "0:00:00",
+    "max_pause_hours_per_day": 2,
+    "min_overhours": 0,
+    "max_overhours": 10,
+    "verbosity": 0,
+    "givenname": "john", "surname": "doe",
+    "work_on_weekend_days": [],
+    "workdays_per_week": 5,
+    "hours_per_week": 40,
+    "hours_per_day": 8,
+    "round_to_minutes": 15,
+    "min_hours_per_day": 7,
+    "start_not_before_than": "1900-01-01 08:00:00",
+    "start_not_later_than": "1900-01-01 11:00:00",
+    "pause_not_before_than": "1900-01-01 12:00:00",
+    "pause_not_later_than": "1900-01-01 14:00:00"
+}

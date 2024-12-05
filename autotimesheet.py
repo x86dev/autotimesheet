@@ -466,32 +466,32 @@ def main():
     print("Sick leave days      : %d" % (state.sick_leave_days,))
     print("Child sick leave days: %d" % (state.child_sick_leave_days,))
 
-    csv_row = {}
-    csv_row['date'] = ''
-    csv_row['worktime_start'] = ''
-    csv_row['worktime_end'] = ''
-    csv_row['pause_start'] = ''
-    csv_row['pause_end'] = ''
     if config.verbosity:
-        csv_row['pause_td'] = ''
-        csv_row['worktime_td'] = hours_worked_total
-    csv_row['comments'] = 'Total Working Time'
-    csv_writer.writerow(csv_row.values())
-    print(csv_row)
+        csv_row = {}
+        csv_row['date'] = ''
+        csv_row['worktime_start'] = ''
+        csv_row['worktime_end'] = ''
+        csv_row['pause_start'] = ''
+        csv_row['pause_end'] = ''
+        if config.verbosity:
+            csv_row['pause_td'] = ''
+            csv_row['worktime_td'] = hours_worked_total
+        csv_row['comments'] = 'Total Working Time'
+        csv_writer.writerow(csv_row.values())
+        print(csv_row)
 
-    csv_row = {}
-    csv_row['date'] = ''
-    csv_row['worktime_start'] = ''
-    csv_row['worktime_end'] = ''
-    csv_row['pause_start'] = ''
-    csv_row['pause_end'] = ''
-    if config.verbosity:
-        csv_row['pause_td'] = ''
-        csv_row['worktime_td'] = -(hours_required - hours_worked_total)
-    csv_row['comments'] = 'Accumulated '
-    csv_writer.writerow(csv_row.values())
-    print(csv_row)
-
+        csv_row = {}
+        csv_row['date'] = ''
+        csv_row['worktime_start'] = ''
+        csv_row['worktime_end'] = ''
+        csv_row['pause_start'] = ''
+        csv_row['pause_end'] = ''
+        if config.verbosity:
+            csv_row['pause_td'] = ''
+            csv_row['worktime_td'] = -(hours_required - hours_worked_total)
+        csv_row['comments'] = 'Accumulated '
+        csv_writer.writerow(csv_row.values())
+        print(csv_row)
 
 if __name__ == "__main__":
     main()

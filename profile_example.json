@@ -1,5 +1,5 @@
 {
-    "vacation": [],
+    "vacation": [ "2024-11-01", "2024-11-02" ],
     "sick_leave": [],
     "child_sick_leave": [],
     "hol": null,

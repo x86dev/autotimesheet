@@ -326,6 +326,22 @@ def profile_read(profile, config):
     with open(profile, encoding="utf-8") as file:
         config = json.load(file, object_hook=lambda d: SimpleNamespace(**d))
 
+    # Crude hacks to convert our profile dates from strings into a valid date object.
+    temp_list = []
+    for cur_date in config.vacation:
+        temp_list.append(datetime.date(datetime.strptime(cur_date, '%Y-%m-%d')))
+    config.vacation = temp_list
+
+    temp_list = []
+    for cur_date in config.sick_leave:
+        temp_list.append(datetime.date(datetime.strptime(cur_date, '%Y-%m-%d')))
+    config.sick_leave = temp_list
+
+    temp_list = []
+    for cur_date in config.child_sick_leave:
+        temp_list.append(datetime.date(datetime.strptime(cur_date, '%Y-%m-%d')))
+    config.child_sick_leave = temp_list
+
     config.cal = calendar.Calendar()
     config.start_not_before_than = datetime.strptime(config.start_not_before_than, '%Y-%m-%d %H:%M:%S')
     config.start_not_later_than = datetime.strptime(config.start_not_later_than, '%Y-%m-%d %H:%M:%S')

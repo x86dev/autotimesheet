@@ -417,7 +417,7 @@ def main():
     timestamp = '%d-%02d' % (now.year, now.month)
 
     fh = open(f'WH-{config.givenname}-{config.surname}-{timestamp}.csv', mode='w')
-    csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csv_writer = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
     csv_hdr    = dict(date='Date', worktime_start='Start', worktime_end='End', \
                     pause_start='Lunch Break Start', pause_end='Lunch Break End', \
                     comments='Comments')
